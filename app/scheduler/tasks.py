@@ -1,22 +1,26 @@
 from app.database.connection import SessionLocal
 from app.repositories.flight_repository import FlightRepository
+from app.repositories.flight_alert_repository import FlightAlertRepository
 from app.services.flight_service import FlightService
 from app.services.telegram_service import TelegramService
 
 
 def check_flights_job():
+
     print("⏰ [Scheduler] Executando rotina automática de monitoramento de voos...")
 
     db = SessionLocal()
 
     try:
         repository = FlightRepository(db)
+        alert_repository = FlightAlertRepository(db)
 
         searches = repository.get_all()
 
         # Monitorar somente Madrid e Roma
         searches = [
-            search for search in searches
+            search
+            for search in searches
             if search.destination in ["MAD", "FCO"]
         ]
 
@@ -41,10 +45,16 @@ def check_flights_job():
                 f"| Voos encontrados: {len(flights)}"
             )
 
-            # Se encontrou voos na faixa de preço, dispara alerta no Telegram
             if flights:
 
                 for flight in flights:
+
+                    if alert_repository.exists(flight, search_model):
+
+                        print(
+                            f"⛔ Alerta já enviado: {flight.flight_number}"
+                        )
+                        continue
 
                     message = (
                         "✈️ *Promoção Encontrada!*\n\n"
@@ -60,6 +70,11 @@ def check_flights_job():
                     )
 
                     telegram.send_message(message)
+
+                    alert_repository.save(
+                        flight,
+                        search_model
+                    )
 
     except Exception as e:
         print(f"❌ [Scheduler] Erro ao executar monitoramento: {e}")
