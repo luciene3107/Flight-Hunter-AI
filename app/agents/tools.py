@@ -1,3 +1,4 @@
+from app.catalog import destinations
 from app.services.flight_service import FlightService
 from app.services.europe_search_service import EuropeSearchService
 from app.schemas.search import FlightSearch
@@ -21,14 +22,18 @@ class FlightTools:
         print("🌍 Busca flexível iniciada")
 
         destinations = self.europe_service.get_destinations()
-
+        print("🌍 Destinos:")
+        print(destinations)
         dates = self.europe_service.generate_dates(
             search.months
         )
 
         flights = []
 
+        print("Plano recebido:")
 
+        print(plan)
+        
         for city, airport in destinations.items():
 
             for date in dates:
