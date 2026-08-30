@@ -49,10 +49,10 @@ def check_flights_job():
 
                 for flight in flights:
 
-                    if alert_repository.exists(flight, search_model):
+                    if not alert_repository.should_alert(flight, search_model):
 
                         print(
-                            f"⛔ Alerta já enviado: {flight.flight_number}"
+                            f"⛔ Alerta recente sem queda de preço: {flight.flight_number}"
                         )
                         continue
 

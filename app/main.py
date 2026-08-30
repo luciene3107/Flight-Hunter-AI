@@ -3,7 +3,10 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
+from app.database.connection import engine
 from app.database.deps import get_db
+from app.models.flight_search import Base
+from app.models import flight_alert  # noqa: F401 (registra a tabela flight_alerts)
 from app.repositories.flight_repository import FlightRepository
 from app.scheduler.runner import start_scheduler
 from app.schemas.search import FlightSearch
@@ -13,6 +16,9 @@ from app.agents.flight_agent import FlightAgent
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+
+    # Garante que todas as tabelas existam antes de usar o banco
+    Base.metadata.create_all(bind=engine)
 
     # Inicia o scheduler quando a API sobe
     scheduler = start_scheduler()
