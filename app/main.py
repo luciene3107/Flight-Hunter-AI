@@ -17,8 +17,12 @@ from app.agents.flight_agent import FlightAgent
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
-    # Garante que todas as tabelas existam antes de usar o banco
-    Base.metadata.create_all(bind=engine)
+    # Garante que todas as tabelas existam antes de usar o banco.
+    # Nao derruba a aplicacao se o banco estiver temporariamente indisponivel.
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"⚠️ [Startup] Nao foi possivel criar as tabelas agora: {e}")
 
     # Inicia o scheduler quando a API sobe
     scheduler = start_scheduler()
