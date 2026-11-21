@@ -1,9 +1,11 @@
+import secrets
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.database.connection import engine
 from app.database.deps import get_db
 from app.models.flight_search import Base
@@ -76,7 +78,21 @@ class AskRequest(BaseModel):
     message: str
 
 
-@app.post("/ask")
+def require_api_key(x_api_key: str | None = Header(default=None)):
+    """Protege o /ask: exige o header X-API-Key igual a ASK_API_KEY."""
+
+    if not settings.ASK_API_KEY:
+        raise HTTPException(
+            status_code=503, detail="ASK_API_KEY nao configurada no servidor."
+        )
+
+    if not x_api_key or not secrets.compare_digest(
+        x_api_key, settings.ASK_API_KEY
+    ):
+        raise HTTPException(status_code=401, detail="API key invalida.")
+
+
+@app.post("/ask", dependencies=[Depends(require_api_key)])
 def ask(request: AskRequest):
     """Pergunta em linguagem natural: o agente (Claude) decide o que buscar."""
 

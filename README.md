@@ -88,6 +88,9 @@ SERPAPI_API_KEY=sua_chave_serpapi
 # LLM (Anthropic) - necessário só para o endpoint /ask
 ANTHROPIC_API_KEY=sua_chave_anthropic
 ANTHROPIC_MODEL=claude-sonnet-5-5   # opcional
+
+# Segredo exigido no header X-API-Key do POST /ask (gere um valor longo e aleatório)
+ASK_API_KEY=um_segredo_longo
 ```
 
 ---
@@ -142,7 +145,7 @@ docker run --env-file .env -p 8000:8000 flight-hunter-ai
 |--------|--------------|-------------------------------------------------------|
 | `GET`  | `/`          | Healthcheck.                                          |
 | `POST` | `/search`    | Executa uma busca com o agente e **salva** o monitoramento. |
-| `POST` | `/ask`       | Pergunta em linguagem natural (`{"message": "..."}`); o agente busca e responde. |
+| `POST` | `/ask`       | Pergunta em linguagem natural (`{"message": "..."}`); exige o header `X-API-Key`. |
 | `GET`  | `/searches`  | Lista todos os monitoramentos cadastrados.            |
 
 ### Exemplo — `POST /search`
