@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database.connection import engine
@@ -67,6 +68,25 @@ def create_search(
     return {
         "message": f"{len(flights)} voo(s) encontrado(s)",
         "max_price": search.max_price,
+        "flights": flights,
+    }
+
+
+class AskRequest(BaseModel):
+    message: str
+
+
+@app.post("/ask")
+def ask(request: AskRequest):
+    """Pergunta em linguagem natural: o agente (Claude) decide o que buscar."""
+
+    try:
+        flights = FlightAgent().run(request.message)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    return {
+        "answer": flights.answer,
         "flights": flights,
     }
 

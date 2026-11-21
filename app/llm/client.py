@@ -1,18 +1,16 @@
-import os
+import anthropic
 
-from dotenv import load_dotenv
-from langchain_groq import ChatGroq
-
-load_dotenv()
+from app.core.config import settings
 
 
 class LLMClient:
 
     @staticmethod
-    def get_llm():
+    def get_client() -> anthropic.Anthropic:
 
-        return ChatGroq(
-            api_key=os.getenv("GROQ_API_KEY"),
-            model=os.getenv("MODEL_NAME"),
-            temperature=0
-        )
+        if not settings.ANTHROPIC_API_KEY:
+            raise RuntimeError(
+                "ANTHROPIC_API_KEY nao configurada. Defina no .env."
+            )
+
+        return anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)

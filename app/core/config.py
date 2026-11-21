@@ -10,6 +10,10 @@ class Settings:
 
     SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
 
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+    ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5")
+
     CURRENCY = "BRL"
 
     LANGUAGE = "pt-BR"

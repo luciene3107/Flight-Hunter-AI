@@ -1,19 +1,11 @@
 from app.agents.flight_agent import FlightAgent
 
 
-agent = FlightAgent()
+message = "Quero viajar do Rio de Janeiro para João Pessoa dia 10/12/2026 até R$1500"
 
+result = FlightAgent().run(message)
 
-message = """
-Quero viajar do Rio de Janeiro para João Pessoa
-no dia 10/11/2026 até R$600
-"""
-
-
-result = agent.run(message)
-
-
-print("\n✈️ Resultado final:")
+print("\n🤖", result.answer)
 
 for flight in result:
     print(flight)

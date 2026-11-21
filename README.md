@@ -10,9 +10,9 @@ guarda buscas de voo, verifica os preços periodicamente e envia um alerta no
 
 - **API REST** (FastAPI) para cadastrar e listar buscas de voo.
 - **Agente de voos** que monta um plano de busca a partir da requisição
-  (`FlightAgent` → `FlightPlanner` → `FlightTools`) e, opcionalmente, extrai os
-  parâmetros de uma frase em linguagem natural usando um LLM na Groq
-  (`llama-3.3-70b-versatile` via LangChain).
+  (`FlightAgent` → `FlightPlanner` → `FlightTools`). Para frases em linguagem
+  natural (`POST /ask`), o Claude (Anthropic) roda um loop de *tool use*: resolve
+  aeroportos, escolhe datas/destinos, chama a busca de voos e resume o resultado.
 - **Provedor de dados**: SerpApi (engine `google_flights`), com _fallback_
   automático para um `MockProvider` quando a SerpApi não retorna resultados.
 - **Busca flexível** por região (ex.: Europa), gerando combinações de destino e
@@ -32,7 +32,7 @@ guarda buscas de voo, verifica os preços periodicamente e envia um alerta no
 | API           | FastAPI + Uvicorn                            |
 | Agendador     | APScheduler (`BackgroundScheduler`)          |
 | Banco         | PostgreSQL + SQLAlchemy 2.x                  |
-| LLM           | Groq + LangChain (`langchain-groq`)          |
+| LLM / Agente  | Anthropic Claude (SDK `anthropic`, tool use) |
 | Dados de voo  | SerpApi (Google Flights) / MockProvider     |
 | Notificações  | Telegram Bot API                            |
 
@@ -44,7 +44,7 @@ guarda buscas de voo, verifica os preços periodicamente e envia um alerta no
 app/
 ├── main.py                  # App FastAPI, ciclo de vida e rotas
 ├── agents/                  # Agente, planner e tools de busca
-├── llm/                     # Cliente Groq e extrator de linguagem natural
+├── llm/                     # Cliente Anthropic
 ├── providers/               # SerpApi, MockProvider e parsers
 ├── services/                # FlightService, TelegramService, EuropeSearchService
 ├── repositories/            # Acesso a dados (buscas e alertas enviados)
@@ -65,8 +65,8 @@ tests/                       # Scripts de verificação
 - PostgreSQL (ou Docker, para subir via `docker-compose`)
 - Conta na [SerpApi](https://serpapi.com/) (chave de API)
 - Bot do Telegram e o `chat_id` do destinatário
-- Chave de API da [Groq](https://console.groq.com/) (apenas para busca por
-  linguagem natural)
+- Chave de API da [Anthropic](https://console.anthropic.com/) (apenas para busca
+  por linguagem natural)
 
 ---
 
@@ -85,9 +85,9 @@ TELEGRAM_CHAT_ID=seu_chat_id
 # SerpApi
 SERPAPI_API_KEY=sua_chave_serpapi
 
-# LLM (Groq) - necessário só para extração de linguagem natural
-GROQ_API_KEY=sua_chave_groq
-MODEL_NAME=llama-3.3-70b-versatile
+# LLM (Anthropic) - necessário só para o endpoint /ask
+ANTHROPIC_API_KEY=sua_chave_anthropic
+ANTHROPIC_MODEL=claude-sonnet-5-5   # opcional
 ```
 
 ---
@@ -142,6 +142,7 @@ docker run --env-file .env -p 8000:8000 flight-hunter-ai
 |--------|--------------|-------------------------------------------------------|
 | `GET`  | `/`          | Healthcheck.                                          |
 | `POST` | `/search`    | Executa uma busca com o agente e **salva** o monitoramento. |
+| `POST` | `/ask`       | Pergunta em linguagem natural (`{"message": "..."}`); o agente busca e responde. |
 | `GET`  | `/searches`  | Lista todos os monitoramentos cadastrados.            |
 
 ### Exemplo — `POST /search`

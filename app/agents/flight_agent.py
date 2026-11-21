@@ -1,7 +1,18 @@
+from datetime import date
+
 from app.agents.planner import FlightPlanner
-from app.agents.tools import FlightTools
-from app.llm.extractor import FlightExtractor
-from app.schemas.search import FlightSearch
+from app.agents.tools import TOOL_DEFINITIONS, FlightTools
+from app.core.config import settings
+from app.core.logger import logger
+from app.llm.client import LLMClient
+
+MAX_STEPS = 12
+
+
+class AgentResult(list):
+    """Lista de voos (compatível com o uso antigo) + resposta em texto do agente."""
+
+    answer: str = ""
 
 
 class FlightAgent:
@@ -9,60 +20,95 @@ class FlightAgent:
     def __init__(self):
 
         self.planner = FlightPlanner()
-        self.tools = FlightTools()
-        self.extractor = FlightExtractor()
 
+    def run(self, search) -> AgentResult:
+        """
+        - str: linguagem natural -> loop de tool use com o Claude.
+        - FlightSearch: requisição estruturada -> plano determinístico (sem LLM).
+        """
 
-    def run(self, search):
-
-        print("🚀 Agent recebeu:")
-        print(search)
+        tools = FlightTools()
 
         if isinstance(search, str):
+            answer = self._run_llm(search, tools)
+        else:
+            answer = self._run_plan(search, tools)
 
-            data = self.extractor.extract(search)
+        result = AgentResult(self._dedupe(tools.flights))
+        result.answer = answer
 
-            print("🔎 Dados extraídos:")
-            print(data)
+        return result
 
-            search = FlightSearch(**data)
+    # ---- plano fixo ----
 
-            print("📦 FlightSearch criado:")
-            print(search)
+    def _run_plan(self, search, tools):
 
+        for action in self.planner.create_plan(search):
 
-        plan = self.planner.create_plan(search)
+            getattr(
+                tools, action["tool"]
+            )(action["params"])
 
-        print("🧠 Plano:")
-        print(plan)
+        return ""
 
-        flights = []
+    # ---- agente com Claude ----
 
+    def _run_llm(self, message: str, tools: FlightTools) -> str:
 
-        for action in plan:
+        client = LLMClient.get_client()
 
-            if action["tool"] == "search_flights":
+        with open("app/prompts/agent_system.txt", encoding="utf-8") as f:
+            system = f.read().format(today=date.today().isoformat())
 
-                result = self.tools.search_flights(
-                    action["params"]
+        messages = [{"role": "user", "content": message}]
+
+        for _ in range(MAX_STEPS):
+
+            response = client.messages.create(
+                model=settings.ANTHROPIC_MODEL,
+                max_tokens=2048,
+                system=system,
+                tools=TOOL_DEFINITIONS,
+                messages=messages,
+            )
+
+            messages.append({"role": "assistant", "content": response.content})
+
+            if response.stop_reason != "tool_use":
+
+                return "".join(
+                    block.text for block in response.content if block.type == "text"
                 )
 
+            results = []
 
-            elif action["tool"] == "search_flexible_flights":
+            for block in response.content:
 
-                result = self.tools.search_flexible_flights(
-                    action["params"]
-                )
+                if block.type == "tool_use":
 
+                    logger.info(f"[Agent] {block.name}({block.input})")
 
-            else:
-                result = []
+                    results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": tools.execute(block.name, block.input),
+                        }
+                    )
 
+            messages.append({"role": "user", "content": results})
 
-            print("✈️ Resultado da Tool:")
-            print(result)
+        logger.warning("Agente atingiu o limite de passos.")
 
-            flights.extend(result)
+        return "Não consegui concluir a busca dentro do limite de passos."
 
+    @staticmethod
+    def _dedupe(flights):
 
-        return flights
+        unique = {}
+
+        for f in flights:
+
+            unique.setdefault((f.flight_number, f.departure_time, f.price), f)
+
+        return sorted(unique.values(), key=lambda f: f.price)

@@ -23,6 +23,10 @@ class SerpApiProvider:
             "api_key": settings.SERPAPI_API_KEY,
         }
 
+        # Sem data de volta, o Google Flights exige type=2 (somente ida)
+        if not search.return_date:
+            params["type"] = 2
+
         response = requests.get(
             self.BASE_URL,
             params=params,
