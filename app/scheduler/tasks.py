@@ -1,3 +1,5 @@
+import threading
+
 from app.database.connection import SessionLocal
 from app.repositories.flight_repository import FlightRepository
 from app.repositories.flight_alert_repository import FlightAlertRepository
@@ -5,7 +7,23 @@ from app.services.flight_service import FlightService
 from app.services.telegram_service import TelegramService
 
 
+# Evita duas execucoes ao mesmo tempo (agendador interno + cron externo)
+_job_lock = threading.Lock()
+
+
 def check_flights_job():
+
+    if not _job_lock.acquire(blocking=False):
+        print("⏰ [Scheduler] Já existe uma verificação em andamento; ignorando.")
+        return
+
+    try:
+        _check_flights()
+    finally:
+        _job_lock.release()
+
+
+def _check_flights():
 
     print("⏰ [Scheduler] Executando rotina automática de monitoramento de voos...")
 
@@ -78,6 +96,14 @@ def check_flights_job():
 
     except Exception as e:
         print(f"❌ [Scheduler] Erro ao executar monitoramento: {e}")
+
+        # Avisa no Telegram para a falha nao passar despercebida
+        try:
+            TelegramService().send_message(
+                f"⚠️ Falha no monitoramento de voos: {str(e)[:200]}"
+            )
+        except Exception:
+            pass
 
     finally:
         db.close()

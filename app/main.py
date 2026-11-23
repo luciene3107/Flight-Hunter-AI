@@ -1,7 +1,7 @@
 import secrets
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,7 @@ from app.models.flight_search import Base
 from app.models import flight_alert  # noqa: F401 (registra a tabela flight_alerts)
 from app.repositories.flight_repository import FlightRepository
 from app.scheduler.runner import start_scheduler
+from app.scheduler.tasks import check_flights_job
 from app.schemas.search import FlightSearch
 from app.schemas.search_response import SearchResponse
 from app.agents.flight_agent import FlightAgent
@@ -78,18 +79,40 @@ class AskRequest(BaseModel):
     message: str
 
 
+def _check_key(expected: str | None, received: str | None, name: str):
+
+    if not expected:
+        raise HTTPException(
+            status_code=503, detail=f"{name} nao configurada no servidor."
+        )
+
+    if not received or not secrets.compare_digest(received, expected):
+        raise HTTPException(status_code=401, detail="API key invalida.")
+
+
 def require_api_key(x_api_key: str | None = Header(default=None)):
     """Protege o /ask: exige o header X-API-Key igual a ASK_API_KEY."""
 
-    if not settings.ASK_API_KEY:
-        raise HTTPException(
-            status_code=503, detail="ASK_API_KEY nao configurada no servidor."
-        )
+    _check_key(settings.ASK_API_KEY, x_api_key, "ASK_API_KEY")
 
-    if not x_api_key or not secrets.compare_digest(
-        x_api_key, settings.ASK_API_KEY
-    ):
-        raise HTTPException(status_code=401, detail="API key invalida.")
+
+def require_cron_key(x_api_key: str | None = Header(default=None)):
+    """Protege o /run-check: exige o header X-API-Key igual a CRON_API_KEY."""
+
+    _check_key(settings.CRON_API_KEY, x_api_key, "CRON_API_KEY")
+
+
+@app.post("/run-check", status_code=202, dependencies=[Depends(require_cron_key)])
+def run_check(background_tasks: BackgroundTasks):
+    """Dispara a rotina de monitoramento (usada por um cron externo).
+
+    Responde na hora e roda a busca em segundo plano, para nao estourar o
+    timeout do agendador externo.
+    """
+
+    background_tasks.add_task(check_flights_job)
+
+    return {"status": "accepted"}
 
 
 @app.post("/ask", dependencies=[Depends(require_api_key)])

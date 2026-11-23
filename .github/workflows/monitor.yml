@@ -1,0 +1,21 @@
+name: Monitorar voos
+
+# Dispara a rotina de monitoramento a cada 6h (e acorda o Render no plano gratuito).
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  run-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar /run-check
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_API_KEY: ${{ secrets.CRON_API_KEY }}
+        run: |
+          curl --fail --show-error --silent \
+            --retry 3 --retry-delay 20 --retry-all-errors --max-time 120 \
+            -X POST "$APP_URL/run-check" \
+            -H "X-API-Key: $CRON_API_KEY"

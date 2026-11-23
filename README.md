@@ -91,6 +91,9 @@ ANTHROPIC_MODEL=claude-sonnet-5-5   # opcional
 
 # Segredo exigido no header X-API-Key do POST /ask (gere um valor longo e aleatório)
 ASK_API_KEY=um_segredo_longo
+
+# Segredo do POST /run-check (cron externo). Opcional: se omitido, usa ASK_API_KEY
+CRON_API_KEY=outro_segredo_longo
 ```
 
 ---
@@ -146,6 +149,7 @@ docker run --env-file .env -p 8000:8000 flight-hunter-ai
 | `GET`  | `/`          | Healthcheck.                                          |
 | `POST` | `/search`    | Executa uma busca com o agente e **salva** o monitoramento. |
 | `POST` | `/ask`       | Pergunta em linguagem natural (`{"message": "..."}`); exige o header `X-API-Key`. |
+| `POST` | `/run-check` | Dispara o monitoramento em segundo plano (`202`); exige `X-API-Key` = `CRON_API_KEY`. |
 | `GET`  | `/searches`  | Lista todos os monitoramentos cadastrados.            |
 
 ### Exemplo — `POST /search`
@@ -185,6 +189,20 @@ Resposta:
   2. **filtra apenas destinos `MAD` (Madri) e `FCO` (Roma)** — ajuste essa lista no
      código para monitorar outras rotas;
   3. busca os voos e, para cada resultado, decide se envia alerta.
+
+### Agendamento externo (recomendado no Render gratuito)
+
+No plano gratuito do Render a API dorme após ~15 min sem acesso e o agendador
+interno para de rodar. Por isso o workflow `.github/workflows/monitor.yml`
+chama `POST /run-check` a cada 6h, o que também acorda o serviço.
+
+Configure em **GitHub → Settings → Secrets and variables → Actions**:
+
+- `APP_URL`: URL do serviço, sem barra final (ex.: `https://flight-hunter-ai.onrender.com`)
+- `CRON_API_KEY`: o mesmo valor definido no Render
+
+Para testar na hora: aba **Actions → Monitorar voos → Run workflow**.
+Se a rotina falhar, um aviso é enviado no Telegram.
 
 ### Deduplicação de alertas
 

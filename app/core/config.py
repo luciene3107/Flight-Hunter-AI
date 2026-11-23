@@ -13,6 +13,10 @@ class Settings:
     # Segredo exigido no header X-API-Key do endpoint /ask
     ASK_API_KEY = os.getenv("ASK_API_KEY")
 
+    # Segredo exigido no header X-API-Key do endpoint /run-check (cron externo).
+    # Se nao definido, usa o mesmo valor de ASK_API_KEY.
+    CRON_API_KEY = os.getenv("CRON_API_KEY") or os.getenv("ASK_API_KEY")
+
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
     ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5")
